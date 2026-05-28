@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
+import { Client } from '@libsql/client';
 import { getDb } from '../db';
-import { requireApiKey, AuthedRequest } from '../auth';
+import { requireApiKey, AuthedRequest, UserRow } from '../auth';
 import { generateMigrationPlaybook, VALID_PLATFORMS } from '../services/claude';
 import { getOrCreateUserFolder, createRunFolder, uploadFile } from '../services/drive';
 import { config } from '../config';
@@ -10,6 +11,7 @@ import { config } from '../config';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
+// ── POST /runs ── create run, return 202 immediately, process in background
 router.post('/', requireApiKey, upload.single('file'), async (req: Request, res: Response) => {
   const { user } = req as AuthedRequest;
   const { source, destination, description } = req.body as Record<string, string>;
@@ -33,30 +35,80 @@ router.post('/', requireApiKey, upload.single('file'), async (req: Request, res:
 
   const runId = uuidv4();
   const db = getDb();
-
   const fileContent = file ? file.buffer.toString('utf-8') : undefined;
-  const fileName = file ? file.originalname : undefined;
+  const fileName    = file ? file.originalname : undefined;
 
   await db.execute({
     sql: `INSERT INTO runs (id, user_id, source, destination, description, original_filename, status)
-          VALUES (?, ?, ?, ?, ?, ?, 'processing')`,
+          VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
     args: [runId, user.id, source, destination, description?.trim() ?? null, fileName ?? null],
   });
 
+  // Respond immediately — client will poll GET /runs/:id
+  const pending = await db.execute({ sql: 'SELECT * FROM runs WHERE id = ?', args: [runId] });
+  res.status(202).json(formatRun(pending.rows[0] as Record<string, unknown>));
+
+  // Fire-and-forget background processing
+  void processRun({
+    runId,
+    user,
+    db,
+    submission: { source, destination, description: description?.trim(), fileContent, fileName },
+  });
+});
+
+// ── GET /runs/:id ────────────────────────────────────────────────────────────
+router.get('/:id', requireApiKey, async (req: Request, res: Response) => {
+  const { user } = req as AuthedRequest;
+  const db = getDb();
+  const result = await db.execute({
+    sql: 'SELECT * FROM runs WHERE id = ? AND user_id = ?',
+    args: [req.params.id, user.id],
+  });
+  if (!result.rows.length) {
+    return res.status(404).json({ error: 'Run not found' });
+  }
+  return res.json(formatRun(result.rows[0] as Record<string, unknown>));
+});
+
+// ── Background processor ─────────────────────────────────────────────────────
+interface ProcessRunArgs {
+  runId: string;
+  user: UserRow;
+  db: Client;
+  submission: {
+    source: string;
+    destination: string;
+    description?: string;
+    fileContent?: string;
+    fileName?: string;
+  };
+}
+
+async function processRun({ runId, user, db, submission }: ProcessRunArgs): Promise<void> {
   try {
-    const result = await generateMigrationPlaybook({ source, destination, description, fileContent, fileName });
+    await db.execute({
+      sql: "UPDATE runs SET status = 'processing' WHERE id = ?",
+      args: [runId],
+    });
+
+    const result = await generateMigrationPlaybook(submission);
 
     let runFolderUrl: string | null = null;
-    let runFolderId: string | null = null;
+    let runFolderId: string | null  = null;
 
     if (config.driveEnabled) {
       try {
+        // Re-fetch user to get latest gdrive_folder_id (may have been set by a concurrent run)
+        const userRow = await db.execute({ sql: 'SELECT * FROM users WHERE id = ?', args: [user.id] });
+        const latestFolderId = (userRow.rows[0]?.gdrive_folder_id as string | null) ?? null;
+
         const { folderId: userFolderId, folderUrl: userFolderUrl } = await getOrCreateUserFolder(
           user.email,
-          user.gdrive_folder_id
+          latestFolderId
         );
 
-        if (!user.gdrive_folder_id) {
+        if (!latestFolderId) {
           await db.execute({
             sql: 'UPDATE users SET gdrive_folder_id = ?, gdrive_folder_url = ? WHERE id = ?',
             args: [userFolderId, userFolderUrl, user.id],
@@ -74,8 +126,7 @@ router.post('/', requireApiKey, upload.single('file'), async (req: Request, res:
           await uploadFile(runFolderId, result.importFileName, result.importFileContent, mime);
         }
       } catch (driveErr: unknown) {
-        const driveMsg = driveErr instanceof Error ? driveErr.message : String(driveErr);
-        console.error(`Run ${runId}: Drive upload failed (run still saved): ${driveMsg}`);
+        console.error(`Run ${runId}: Drive upload failed (run still saved):`, driveErr);
       }
     }
 
@@ -101,31 +152,18 @@ router.post('/', requireApiKey, upload.single('file'), async (req: Request, res:
       ],
     });
 
-    const runResult = await db.execute({ sql: 'SELECT * FROM runs WHERE id = ?', args: [runId] });
-    return res.status(201).json(formatRun(runResult.rows[0] as Record<string, unknown>));
+    console.log(`Run ${runId} completed.`);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    await db.execute({
-      sql: `UPDATE runs SET status = 'failed', error_message = ?, completed_at = datetime('now') WHERE id = ?`,
-      args: [msg, runId],
-    });
     console.error(`Run ${runId} failed:`, err);
-    return res.status(500).json({ error: 'Processing failed', details: msg });
+    await db
+      .execute({
+        sql: `UPDATE runs SET status = 'failed', error_message = ?, completed_at = datetime('now') WHERE id = ?`,
+        args: [msg, runId],
+      })
+      .catch(console.error);
   }
-});
-
-router.get('/:id', requireApiKey, async (req: Request, res: Response) => {
-  const { user } = req as AuthedRequest;
-  const db = getDb();
-  const result = await db.execute({
-    sql: 'SELECT * FROM runs WHERE id = ? AND user_id = ?',
-    args: [req.params.id, user.id],
-  });
-  if (!result.rows.length) {
-    return res.status(404).json({ error: 'Run not found' });
-  }
-  return res.json(formatRun(result.rows[0] as Record<string, unknown>));
-});
+}
 
 function formatRun(run: Record<string, unknown>) {
   return {

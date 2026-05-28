@@ -45,6 +45,16 @@ export function RunDetailPage() {
     api.getRun(id).then(setRun).catch(console.error).finally(() => setLoading(false));
   }, [id]);
 
+  // Poll while run is in-flight
+  useEffect(() => {
+    if (!id || !run) return;
+    if (run.status !== 'pending' && run.status !== 'processing') return;
+    const timer = setInterval(() => {
+      api.getRun(id).then(setRun).catch(console.error);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [id, run?.status]);
+
   function downloadFile() {
     if (!run?.import_file_content || !run?.import_file_name) return;
     const blob = new Blob([run.import_file_content], { type: 'application/octet-stream' });

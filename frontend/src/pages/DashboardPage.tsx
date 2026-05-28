@@ -4,6 +4,37 @@ import { api } from '../api';
 import type { RunSummary } from '../types';
 import { PLATFORM_COLORS } from '../types';
 
+function ApiKeyBanner() {
+  const [visible, setVisible]   = useState(false);
+  const [copied,  setCopied]    = useState(false);
+  const auth = JSON.parse(localStorage.getItem('flowshift_auth') || '{}');
+  const key: string = auth.apiKey || '';
+
+  function copy() {
+    navigator.clipboard.writeText(key).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-slate-900 border border-white/5 rounded-xl text-sm">
+      <span className="text-slate-500 shrink-0">API Key</span>
+      <code className="flex-1 font-mono text-xs text-slate-400 truncate">
+        {visible ? key : '••••••••-••••-••••-••••-••••••••••••'}
+      </code>
+      <button onClick={() => setVisible(v => !v)}
+        className="text-slate-600 hover:text-slate-300 transition-colors text-xs shrink-0">
+        {visible ? 'Hide' : 'Show'}
+      </button>
+      <button onClick={copy}
+        className="text-slate-600 hover:text-slate-300 transition-colors text-xs shrink-0">
+        {copied ? <span className="text-emerald-400">Copied!</span> : 'Copy'}
+      </button>
+    </div>
+  );
+}
+
 function getAuth() {
   try { return JSON.parse(localStorage.getItem('flowshift_auth') || '{}'); }
   catch { return {}; }
@@ -122,6 +153,9 @@ export function DashboardPage() {
             New Migration
           </button>
         </div>
+
+        {/* API Key */}
+        <ApiKeyBanner />
 
         {/* Stats (only when there are runs) */}
         {runs.length > 0 && (

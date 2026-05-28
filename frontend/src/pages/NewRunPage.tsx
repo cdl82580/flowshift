@@ -40,6 +40,7 @@ export function NewRunPage() {
     setError('');
     setLoading(true);
     try {
+      // Returns 202 immediately — processing happens in the background
       const run = await api.createRun({ source, destination, description: description.trim() || undefined, file: file ?? undefined });
       navigate(`/runs/${run.id}`);
     } catch (err) {
