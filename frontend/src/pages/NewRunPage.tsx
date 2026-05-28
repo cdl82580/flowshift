@@ -179,31 +179,6 @@ export function NewRunPage() {
                 <PlatformBtn key={p} name={p} selected={destination === p} onClick={() => setDestination(destination === p ? '' : p)} />
               ))}
             </div>
-
-            {/* Paste fallback — shown automatically on read error, or manually */}
-            {(showPaste || pasteContent) ? (
-              <div className="mt-3">
-                <label className="block text-xs text-slate-500 mb-1.5">
-                  Paste file content here
-                  {pasteContent && <span className="text-emerald-400 ml-2">✓ ready</span>}
-                </label>
-                <textarea
-                  value={pasteContent}
-                  onChange={e => setPasteContent(e.target.value)}
-                  placeholder='{ "name": "My Workflow", "nodes": [...] }'
-                  rows={6}
-                  className="w-full bg-slate-800 border border-white/8 rounded-xl px-4 py-3 text-white text-xs font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500/60 transition-colors resize-none"
-                />
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowPaste(true)}
-                className="mt-2 text-slate-600 hover:text-slate-400 text-xs underline transition-colors"
-              >
-                Paste content instead
-              </button>
-            )}
           </div>
 
           {/* Description */}
@@ -266,6 +241,32 @@ export function NewRunPage() {
               )}
             </div>
           </div>
+
+          {/* Paste fallback — auto-opens on NotReadableError, also manually available */}
+          {(showPaste || pasteContent) ? (
+            <div className="border border-white/8 rounded-xl bg-slate-900/60 px-5 py-4">
+              <label className="block text-sm font-semibold text-white mb-2">
+                Paste Workflow File Content
+                {pasteContent && <span className="text-emerald-400 font-normal ml-2">✓ ready</span>}
+              </label>
+              <p className="text-slate-500 text-xs mb-3">Open the file in any text editor → Cmd+A → Cmd+C → paste here.</p>
+              <textarea
+                value={pasteContent}
+                onChange={e => setPasteContent(e.target.value)}
+                placeholder='{ "name": "My Workflow", "nodes": [...] }'
+                rows={7}
+                className="w-full bg-slate-800 border border-white/8 rounded-xl px-4 py-3 text-white text-xs font-mono placeholder-slate-600 focus:outline-none focus:border-indigo-500/60 transition-colors resize-none"
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPaste(true)}
+              className="text-slate-600 hover:text-slate-400 text-xs underline transition-colors -mt-4"
+            >
+              Can't upload? Paste file content instead
+            </button>
+          )}
 
           {error && (
             <div className="px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
