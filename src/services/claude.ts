@@ -79,9 +79,12 @@ Produce a complete ${docTitle} using EXACTLY this format:
 - If destination is n8n: Provide a valid JSON array of nodes and connections.
 - If destination is Make: Provide a valid Blueprint JSON.
 - If destination is Zapier: Write "NOT AVAILABLE".
-- If destination is Tray: Provide a valid workflow JSON.
-- If destination is Power Automate: Provide a valid Power Automate flow definition JSON using the standard export schema (with $schema, contentVersion, parameters, triggers, and actions). Note that connections and credentials will require manual configuration in Power Automate after import.
-Provide actual functional logic, not a blank template. Use {{PLACEHOLDER}} for API keys.]
+- If destination is Tray: Provide a best-effort Tray workflow JSON with steps and connectors. Use {{PLACEHOLDER}} for connector IDs and credentials.
+- If destination is Boomi: Provide a best-effort Boomi process definition JSON with shapes (Start, Map, Route, etc.) and connector operations. Use {{PLACEHOLDER}} for Atom IDs, connector settings, and process properties.
+- If destination is Workato: Provide a best-effort Workato recipe JSON with trigger, steps, and actions. Use {{PLACEHOLDER}} for connection IDs and account-specific values.
+- If destination is Celigo: Provide a best-effort Celigo flow definition JSON with exports, imports, and flow steps. Use {{PLACEHOLDER}} for connection IDs, resource IDs, and field mappings.
+- If destination is Power Automate: Provide a best-effort Power Automate flow definition JSON using the standard export schema (with $schema, contentVersion, parameters, triggers, and actions). Use {{PLACEHOLDER}} for connection references and credentials.
+Provide actual functional logic, not a blank template. Use {{PLACEHOLDER}} for API keys and platform-specific IDs.]
 ---END IMPORT FILE---
 
 ---BEGIN IMPORT FILE FORMAT---

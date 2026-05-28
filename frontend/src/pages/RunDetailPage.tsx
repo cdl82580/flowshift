@@ -5,6 +5,37 @@ import { api } from '../api';
 import type { Run } from '../types';
 import { PLATFORM_COLORS } from '../types';
 
+// Platforms whose import files are best-effort approximations due to
+// proprietary / poorly-documented formats. n8n and Make are excluded
+// (well-documented; files import cleanly). Zapier never generates a file.
+const PLATFORM_CAVEATS: Record<string, string> = {
+  'Tray':
+    "Tray's workflow format is proprietary with limited public documentation. " +
+    "The generated file is a best-effort approximation — step definitions and connector " +
+    "configurations will likely need manual adjustments before the workflow runs correctly. " +
+    "Use the Playbook tab as your primary build guide.",
+  'Boomi':
+    "Boomi's process format is a complex enterprise schema tied to your specific Atoms, " +
+    "connectors, and deployment environment. The generated file is a best-effort approximation " +
+    "that will require manual configuration in Boomi before it can be deployed. " +
+    "Use the Playbook tab as your primary build guide.",
+  'Workato':
+    "Workato's recipe format is proprietary and not publicly documented. " +
+    "The generated file is a best-effort approximation — trigger and action configurations " +
+    "may need manual adjustments in Workato before the recipe runs correctly. " +
+    "Use the Playbook tab as your primary build guide.",
+  'Celigo':
+    "Celigo's flow format is proprietary with account-specific field mappings and scripts. " +
+    "The generated file is a best-effort approximation — integrations and mappings will likely " +
+    "need manual configuration in Celigo before the flow runs correctly. " +
+    "Use the Playbook tab as your primary build guide.",
+  'Power Automate':
+    "Microsoft's flow format is proprietary and complex. The generated file is a best-effort " +
+    "approximation — connections, credentials, and some action parameters will likely need manual " +
+    "configuration in Power Automate before the flow runs correctly. " +
+    "Use the Playbook tab as your primary build guide.",
+};
+
 function PlatformChip({ name }: { name: string }) {
   const cfg = PLATFORM_COLORS[name as keyof typeof PLATFORM_COLORS];
   return (
@@ -149,13 +180,14 @@ export function RunDetailPage() {
               )}
             </div>
           </div>
-          {run.destination === 'Power Automate' && run.status === 'completed' && run.has_import_file && (
+          {PLATFORM_CAVEATS[run.destination] && run.status === 'completed' && run.has_import_file && (
             <div className="mt-4 flex items-start gap-3 px-4 py-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
               <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-amber-300/80 text-xs leading-relaxed">
-                <strong className="text-amber-300 font-semibold">Power Automate import note:</strong> Microsoft's flow format is proprietary and complex. The generated file is a best-effort approximation — connections, credentials, and some action parameters will likely need manual configuration in Power Automate before the flow runs correctly. Use the <strong className="text-amber-300">Playbook tab</strong> as your primary build guide.
+                <strong className="text-amber-300 font-semibold">{run.destination} import note: </strong>
+                {PLATFORM_CAVEATS[run.destination]}
               </p>
             </div>
           )}
