@@ -156,9 +156,15 @@ export function RunDetailPage() {
             )}
           </div>
           {run.description && (
-            <p className="mt-3 text-sm text-slate-400 bg-white/3 rounded-lg px-4 py-3 border border-white/5 leading-relaxed">
-              {run.description}
-            </p>
+            <div
+              className="mt-3 prose prose-invert prose-sm max-w-none bg-white/3 rounded-lg px-4 py-3 border border-white/5
+                prose-p:text-slate-400 prose-p:my-1 prose-headings:text-slate-300 prose-headings:font-semibold
+                prose-strong:text-slate-300 prose-li:text-slate-400 prose-code:text-indigo-300
+                prose-code:bg-indigo-500/10 prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+                prose-code:before:content-none prose-code:after:content-none
+                prose-a:text-indigo-400 prose-blockquote:text-slate-500 prose-blockquote:border-slate-600"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(run.description) }}
+            />
           )}
         </div>
 
