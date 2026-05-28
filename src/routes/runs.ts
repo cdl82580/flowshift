@@ -12,18 +12,19 @@ const router = Router();
 // ── POST /runs ── accepts JSON: { source, destination, description?, fileContent?, fileName? }
 router.post('/', requireApiKey, async (req: Request, res: Response) => {
   const { user } = req as AuthedRequest;
-  const { source, destination, description, fileContent, fileName } = req.body as Record<string, string>;
+  const { source: rawSource, destination, description, fileContent, fileName } = req.body as Record<string, string>;
+  const source = rawSource?.trim() || null;   // empty string → null
 
-  if (!source || !destination) {
-    return res.status(400).json({ error: 'source and destination are required' });
+  if (!destination) {
+    return res.status(400).json({ error: 'destination is required' });
   }
-  if (!(VALID_PLATFORMS as readonly string[]).includes(source)) {
+  if (source && !(VALID_PLATFORMS as readonly string[]).includes(source)) {
     return res.status(400).json({ error: `Invalid source. Valid platforms: ${VALID_PLATFORMS.join(', ')}` });
   }
   if (!(VALID_PLATFORMS as readonly string[]).includes(destination)) {
     return res.status(400).json({ error: `Invalid destination. Valid platforms: ${VALID_PLATFORMS.join(', ')}` });
   }
-  if (source === destination) {
+  if (source && source === destination) {
     return res.status(400).json({ error: 'source and destination cannot be the same' });
   }
   if (!fileContent?.trim() && !description?.trim()) {
@@ -36,7 +37,7 @@ router.post('/', requireApiKey, async (req: Request, res: Response) => {
   await db.execute({
     sql: `INSERT INTO runs (id, user_id, source, destination, description, original_filename, status)
           VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-    args: [runId, user.id, source, destination, description?.trim() ?? null, fileName ?? null],
+    args: [runId, user.id, source, destination, description?.trim() ?? null, fileName?.trim() ?? null],
   });
 
   // Respond immediately — client will poll GET /runs/:id
@@ -49,11 +50,11 @@ router.post('/', requireApiKey, async (req: Request, res: Response) => {
     user,
     db,
     submission: {
-      source,
+      source:      source ?? undefined,
       destination,
-      description: description?.trim(),
+      description: description?.trim() || undefined,
       fileContent: fileContent?.trim() || undefined,
-      fileName: fileName || undefined,
+      fileName:    fileName?.trim() || undefined,
     },
   });
 });
@@ -78,7 +79,7 @@ interface ProcessRunArgs {
   user: UserRow;
   db: Client;
   submission: {
-    source: string;
+    source?: string;
     destination: string;
     description?: string;
     fileContent?: string;

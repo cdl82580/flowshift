@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
 import { PLATFORMS, PLATFORM_COLORS } from '../types';
+import { MarkdownEditor } from '../components/MarkdownEditor';
 
 function PlatformBtn({ name, selected, onClick }: { name: string; selected: boolean; onClick: () => void }) {
   const cfg = PLATFORM_COLORS[name as keyof typeof PLATFORM_COLORS];
@@ -81,8 +82,8 @@ export function NewRunPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!source || !destination) return setError('Select both a source and destination platform.');
-    if (source === destination)  return setError('Source and destination must be different platforms.');
+    if (!destination) return setError('Select a destination platform.');
+    if (source && source === destination) return setError('Source and destination cannot be the same.');
     if (!effectiveContent && !description.trim()) return setError('Provide a description or upload a workflow file (or both).');
     setError('');
     setLoading(true);
@@ -157,10 +158,14 @@ export function NewRunPage() {
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Source */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-3">
+            <label className="block text-sm font-semibold text-white mb-1">
               Source Platform
+              <span className="ml-2 text-slate-500 font-normal text-xs">optional — skip for a build guide</span>
               {source && <span className="ml-2 font-normal text-indigo-400">→ {source}</span>}
             </label>
+            <p className="text-slate-600 text-xs mb-3">
+              No source? FlowShift will generate a <span className="text-slate-400">Build Guide</span> for the destination platform instead.
+            </p>
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
               {PLATFORMS.map(p => (
                 <PlatformBtn key={p} name={p} selected={source === p} onClick={() => setSource(source === p ? '' : p)} />
@@ -172,6 +177,7 @@ export function NewRunPage() {
           <div>
             <label className="block text-sm font-semibold text-white mb-3">
               Destination Platform
+              <span className="ml-2 text-red-400 font-normal text-xs">required</span>
               {destination && <span className="ml-2 font-normal text-indigo-400">→ {destination}</span>}
             </label>
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
@@ -185,14 +191,13 @@ export function NewRunPage() {
           <div>
             <label className="block text-sm font-semibold text-white mb-2">
               Workflow Description
-              <span className="text-slate-500 font-normal ml-2">optional if file uploaded</span>
+              <span className="text-slate-500 font-normal ml-2 text-xs">optional if file uploaded · markdown supported</span>
             </label>
-            <textarea
+            <MarkdownEditor
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="Describe what the workflow does — triggers, conditions, actions, platforms involved…"
-              rows={5}
-              className="w-full bg-slate-900 border border-white/8 rounded-xl px-4 py-3 text-white text-sm placeholder-slate-600 focus:outline-none focus:border-indigo-500/60 transition-colors resize-none"
+              rows={7}
             />
           </div>
 

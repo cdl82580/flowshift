@@ -5,7 +5,7 @@ export const VALID_PLATFORMS = ['n8n', 'Make', 'Zapier', 'Tray', 'Boomi', 'Worka
 export type Platform = typeof VALID_PLATFORMS[number];
 
 export interface Submission {
-  source: string;
+  source?: string;      // optional — omit for "build guide" mode
   destination: string;
   description?: string;
   fileContent?: string;
@@ -26,10 +26,15 @@ function getClient(): Anthropic {
 }
 
 export async function generateMigrationPlaybook(submission: Submission): Promise<PlaybookResult> {
+  const isMigration = !!submission.source;
+  const systemPrompt = isMigration
+    ? `You are Flowshift, an expert iPaaS migration consultant. You specialize in translating workflow logic between platforms. Your primary goal is to provide functional, valid import files (JSON) for the destination platform whenever technically possible.`
+    : `You are Flowshift, an expert iPaaS workflow consultant. You specialize in building workflows from scratch on any iPaaS platform. Your primary goal is to provide functional, valid import files (JSON) for the target platform whenever technically possible.`;
+
   const response = await getClient().messages.create({
     model: config.claudeModel,
     max_tokens: config.maxTokens,
-    system: `You are Flowshift, an expert iPaaS migration consultant. You specialize in translating workflow logic between platforms. Your primary goal is to provide functional, valid import files (JSON) for the destination platform whenever technically possible.`,
+    system: systemPrompt,
     messages: [{ role: 'user', content: buildPrompt(submission) }],
   });
 
@@ -38,22 +43,39 @@ export async function generateMigrationPlaybook(submission: Submission): Promise
 }
 
 function buildPrompt({ source, destination, fileContent, fileName, description }: Submission): string {
-  let context = '';
-  if (fileContent) context += `## Source Workflow File (${fileName})\n\`\`\`\n${fileContent.substring(0, 15000)}\n\`\`\`\n\n`;
-  if (description) context += `## Source Workflow Description\n${description}\n\n`;
+  const isMigration = !!source;
 
-  return `I need to migrate a workflow from **${source}** to **${destination}**.
+  let context = '';
+  if (fileContent) {
+    const label = isMigration ? 'Source Workflow File' : 'Reference Workflow / Requirements';
+    context += `## ${label} (${fileName})\n\`\`\`\n${fileContent.substring(0, 15000)}\n\`\`\`\n\n`;
+  }
+  if (description) {
+    const label = isMigration ? 'Source Workflow Description' : 'Workflow Requirements';
+    context += `## ${label}\n${description}\n\n`;
+  }
+
+  const intro = isMigration
+    ? `I need to migrate a workflow from **${source}** to **${destination}**.`
+    : `I need a step-by-step guide for building the following workflow in **${destination}** from scratch.`;
+
+  const docTitle  = isMigration ? 'FlowShift Migration Playbook' : 'FlowShift Build Guide';
+  const bodyHint  = isMigration
+    ? 'Detailed breakdown of each step, node mapping from source to destination, credential setup, and gotchas'
+    : `Detailed step-by-step guide for building this workflow in ${destination}, including node setup, credential configuration, and testing tips`;
+
+  return `${intro}
 
 ${context}
-Produce a complete Flowshift Migration Playbook using EXACTLY this format:
+Produce a complete ${docTitle} using EXACTLY this format:
 
 ---BEGIN PLAYBOOK---
-# Flowshift Migration Playbook
-[Detailed breakdown, mapping, and build guide]
+# ${docTitle}
+[${bodyHint}]
 ---END PLAYBOOK---
 
 ---BEGIN IMPORT FILE---
-[IMPORTANT: You MUST generate a valid, functional ${destination} import file based on the source logic.
+[IMPORTANT: You MUST generate a valid, functional ${destination} import file based on the workflow logic.
 - If destination is n8n: Provide a valid JSON array of nodes and connections.
 - If destination is Make: Provide a valid Blueprint JSON.
 - If destination is Zapier: Write "NOT AVAILABLE".
@@ -68,9 +90,9 @@ Provide actual functional logic, not a blank template. Use {{PLACEHOLDER}} for A
 
 function parseOutput(rawOutput: string, submission: Submission): PlaybookResult {
   const playbookMatch = rawOutput.match(/---BEGIN PLAYBOOK---([\s\S]*?)---END PLAYBOOK---/);
-  const playbookText = playbookMatch ? playbookMatch[1].trim() : rawOutput;
+  const playbookText  = playbookMatch ? playbookMatch[1].trim() : rawOutput;
 
-  let importFileContent: string | null = null;
+  let importFileContent: string | null   = null;
   let importFileExtension: string | null = null;
 
   const importMatch = rawOutput.match(/---BEGIN IMPORT FILE---([\s\S]*?)---END IMPORT FILE---/);
@@ -90,7 +112,9 @@ function parseOutput(rawOutput: string, submission: Submission): PlaybookResult 
   let importFileName: string | null = null;
   if (importFileContent && importFileExtension) {
     const safe = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    importFileName = `flowshift_${safe(submission.source)}_to_${safe(submission.destination)}.${importFileExtension}`;
+    importFileName = submission.source
+      ? `flowshift_${safe(submission.source)}_to_${safe(submission.destination)}.${importFileExtension}`
+      : `flowshift_${safe(submission.destination)}_build.${importFileExtension}`;
   }
 
   return { playbookText, importFileContent, importFileName, importFileExtension };

@@ -9,7 +9,7 @@ export interface User {
 
 export interface RunSummary {
   id: string;
-  source: string;
+  source: string | null;
   destination: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   original_filename: string | null;

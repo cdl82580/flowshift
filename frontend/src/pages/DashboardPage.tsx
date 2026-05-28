@@ -204,10 +204,16 @@ export function DashboardPage() {
               >
                 {/* Left */}
                 <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                  <PlatformBadge name={run.source} />
-                  <svg className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
+                  {run.source ? (
+                    <>
+                      <PlatformBadge name={run.source} />
+                      <svg className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      </svg>
+                    </>
+                  ) : (
+                    <span className="text-xs text-slate-500 italic mr-1">Build Guide →</span>
+                  )}
                   <PlatformBadge name={run.destination} />
                   <StatusBadge status={run.status} />
                   {run.original_filename && (
