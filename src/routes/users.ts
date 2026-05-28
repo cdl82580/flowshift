@@ -34,6 +34,13 @@ router.post('/', async (req: Request, res: Response) => {
   return res.status(201).json({ id, email: normalizedEmail, name: name?.trim() ?? null, api_key: apiKey });
 });
 
+// GET /users/me — identify caller by API key (must be before /:id)
+router.get('/me', requireApiKey, (req: Request, res: Response) => {
+  const { user } = req as AuthedRequest;
+  const { api_key, ...safe } = user;
+  return res.json(safe);
+});
+
 router.get('/:id', requireApiKey, (req: Request, res: Response) => {
   const { user } = req as AuthedRequest;
   if (user.id !== req.params.id) {
