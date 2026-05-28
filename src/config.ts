@@ -14,9 +14,10 @@ export const config = {
   claudeModel: process.env.CLAUDE_MODEL || 'claude-opus-4-7',
   maxTokens: parseInt(process.env.MAX_TOKENS || '8192', 10),
 
-  googleServiceAccountEmail: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '',
-  googleServiceAccountKey: (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+  googleOauthClientId: process.env.GOOGLE_OAUTH_CLIENT_ID || '',
+  googleOauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',
   gdriveParentFolderId: process.env.GDRIVE_PARENT_FOLDER_ID || '11BCUCoM3a0di8tYiz-r9EOuQ7AZlt7FU',
+  appUrl: process.env.APP_URL || 'https://flowshift-cdl.fly.dev',
 
-  driveEnabled: !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
+  driveEnabled: !!(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET),
 };

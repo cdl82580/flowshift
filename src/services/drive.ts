@@ -1,15 +1,26 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { config } from '../config';
+import { getDb } from '../db';
 
-function getDrive() {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: config.googleServiceAccountEmail,
-      private_key: config.googleServiceAccountKey,
-    },
-    scopes: ['https://www.googleapis.com/auth/drive'],
+async function getDriveClient() {
+  const db = getDb();
+  const result = await db.execute({
+    sql: "SELECT value FROM settings WHERE key = 'drive_refresh_token'",
+    args: [],
   });
+
+  if (!result.rows.length) {
+    throw new Error('Drive not authorized. Visit /auth/google to authorize.');
+  }
+
+  const refreshToken = result.rows[0].value as string;
+  const auth = new google.auth.OAuth2(
+    config.googleOauthClientId,
+    config.googleOauthClientSecret,
+    `${config.appUrl}/auth/google/callback`
+  );
+  auth.setCredentials({ refresh_token: refreshToken });
   return google.drive({ version: 'v3', auth });
 }
 
@@ -24,7 +35,7 @@ export async function getOrCreateUserFolder(
     };
   }
 
-  const drive = getDrive();
+  const drive = await getDriveClient();
 
   const folder = await drive.files.create({
     requestBody: {
@@ -52,7 +63,7 @@ export async function createRunFolder(
   userFolderId: string,
   runId: string
 ): Promise<{ folderId: string; folderUrl: string }> {
-  const drive = getDrive();
+  const drive = await getDriveClient();
 
   const folder = await drive.files.create({
     requestBody: {
@@ -82,7 +93,7 @@ export async function uploadFile(
   content: string,
   mimeType = 'text/plain'
 ): Promise<string> {
-  const drive = getDrive();
+  const drive = await getDriveClient();
 
   const file = await drive.files.create({
     requestBody: {

@@ -5,6 +5,7 @@ import { config } from './config';
 import { initDb } from './db';
 import usersRouter from './routes/users';
 import runsRouter from './routes/runs';
+import authRouter from './routes/auth';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.get('/', (_req, res) => {
   });
 });
 
+app.use('/auth', authRouter);
 app.use('/users', usersRouter);
 app.use('/runs', runsRouter);
 

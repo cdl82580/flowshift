@@ -41,6 +41,12 @@ export async function initDb(): Promise<void> {
       completed_at          TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS settings (
+      key        TEXT PRIMARY KEY,
+      value      TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_runs_user_id ON runs(user_id);
     CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(api_key);
   `);

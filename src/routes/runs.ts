@@ -50,27 +50,32 @@ router.post('/', requireApiKey, upload.single('file'), async (req: Request, res:
     let runFolderId: string | null = null;
 
     if (config.driveEnabled) {
-      const { folderId: userFolderId, folderUrl: userFolderUrl } = await getOrCreateUserFolder(
-        user.email,
-        user.gdrive_folder_id
-      );
+      try {
+        const { folderId: userFolderId, folderUrl: userFolderUrl } = await getOrCreateUserFolder(
+          user.email,
+          user.gdrive_folder_id
+        );
 
-      if (!user.gdrive_folder_id) {
-        await db.execute({
-          sql: 'UPDATE users SET gdrive_folder_id = ?, gdrive_folder_url = ? WHERE id = ?',
-          args: [userFolderId, userFolderUrl, user.id],
-        });
-      }
+        if (!user.gdrive_folder_id) {
+          await db.execute({
+            sql: 'UPDATE users SET gdrive_folder_id = ?, gdrive_folder_url = ? WHERE id = ?',
+            args: [userFolderId, userFolderUrl, user.id],
+          });
+        }
 
-      const runFolder = await createRunFolder(userFolderId, runId);
-      runFolderId = runFolder.folderId;
-      runFolderUrl = runFolder.folderUrl;
+        const runFolder = await createRunFolder(userFolderId, runId);
+        runFolderId = runFolder.folderId;
+        runFolderUrl = runFolder.folderUrl;
 
-      await uploadFile(runFolderId, 'playbook.md', result.playbookText, 'text/markdown');
+        await uploadFile(runFolderId, 'playbook.md', result.playbookText, 'text/markdown');
 
-      if (result.importFileContent && result.importFileName) {
-        const mime = result.importFileExtension === 'json' ? 'application/json' : 'text/plain';
-        await uploadFile(runFolderId, result.importFileName, result.importFileContent, mime);
+        if (result.importFileContent && result.importFileName) {
+          const mime = result.importFileExtension === 'json' ? 'application/json' : 'text/plain';
+          await uploadFile(runFolderId, result.importFileName, result.importFileContent, mime);
+        }
+      } catch (driveErr: unknown) {
+        const driveMsg = driveErr instanceof Error ? driveErr.message : String(driveErr);
+        console.error(`Run ${runId}: Drive upload failed (run still saved): ${driveMsg}`);
       }
     }
 
