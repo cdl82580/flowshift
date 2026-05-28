@@ -41,7 +41,7 @@ export function NewRunPage() {
     reader.onload = (ev) => setFileContent((ev.target?.result as string) ?? '');
     reader.onerror = () => {
       setFileName(null);
-      setError('Could not read that file. Try selecting it via the browse button instead of drag-and-drop.');
+      setError('Could not read that file. Try clicking Browse to select it from your file picker.');
     };
     reader.readAsText(f, 'UTF-8');
   }
@@ -77,8 +77,30 @@ export function NewRunPage() {
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragOver(false);
-    const f = e.dataTransfer.files[0] ?? e.dataTransfer.items[0]?.getAsFile();
+
+    // Prefer FileSystem API — it acquires a proper security-scoped bookmark on
+    // macOS/Safari, which avoids permission errors on files with emoji filenames
+    // or files from restricted locations.
+    const dtItem = e.dataTransfer.items?.[0];
+    if (dtItem?.kind === 'file') {
+      const entry = dtItem.webkitGetAsEntry?.();
+      if (entry?.isFile) {
+        (entry as FileSystemFileEntry).file(
+          (f) => ingestFile(f),
+          () => fallbackRead(e),   // FileSystem API failed → try legacy path
+        );
+        return;
+      }
+      const f = dtItem.getAsFile();
+      if (f) { ingestFile(f); return; }
+    }
+    fallbackRead(e);
+  }
+
+  function fallbackRead(e: React.DragEvent) {
+    const f = e.dataTransfer.files?.[0];
     if (f) ingestFile(f);
+    else setError('Could not read the dropped file. Use the Browse button to select it.');
   }
 
   return (
