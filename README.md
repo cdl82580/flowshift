@@ -16,19 +16,19 @@ Submit a source workflow (file upload or plain-text description) and a source/de
 
 **Supported platforms:** n8n · Make · Zapier · Tray · Boomi · Workato · Celigo · Power Automate
 
-**Source platform is optional.** Omitting it switches Claude to *Build Guide* mode — a step-by-step guide for building the workflow from scratch in the destination platform rather than a migration.
+**Source platform is optional.** Omitting it switches Claude to *Build Guide* mode — a step-by-step guide for building the workflow from scratch in the destination platform rather than migrating from somewhere else.
 
 ### Import file compatibility
 
 | Platform | Import file | Notes |
 |---|---|---|
 | n8n | ✅ Reliable | Open, well-documented JSON format |
-| Make | ✅ Reliable | Blueprint JSON — connection re-linking is expected during any Make import |
+| Make | ✅ Reliable | Blueprint JSON — connection re-linking is expected on any Make import |
 | Zapier | ❌ Not available | Zapier does not support workflow import |
 | Tray | ⚠️ Best-effort | Proprietary format — step definitions and connectors need manual adjustment |
 | Boomi | ⚠️ Best-effort | Complex enterprise schema tied to Atoms/connectors — use the playbook as the primary guide |
-| Workato | ⚠️ Best-effort | Proprietary recipe format — trigger and action configs may need manual adjustment |
-| Celigo | ⚠️ Best-effort | Proprietary flows with account-specific mappings — integrations need manual configuration |
+| Workato | ⚠️ Best-effort | Proprietary recipe format — trigger/action configs may need manual adjustment |
+| Celigo | ⚠️ Best-effort | Proprietary flows with account-specific mappings and scripts |
 | Power Automate | ⚠️ Best-effort | Proprietary Microsoft schema — connections and credentials need manual configuration |
 
 The UI surfaces an inline caveat banner on the run detail page for all ⚠️ platforms.
@@ -44,6 +44,7 @@ The UI surfaces an inline caveat banner on the run detail page for all ⚠️ pl
 | AI | Anthropic Claude (`claude-opus-4-7`) |
 | Storage | Google Drive API v3 (OAuth2) |
 | Frontend | React 18 · TypeScript · Vite · Tailwind CSS |
+| Slack | `@slack/web-api` · Block Kit modals · slash commands |
 | Deploy | Fly.io · Docker (multi-stage) |
 
 ---
@@ -70,7 +71,7 @@ Register a new user. Returns an `api_key` — **shown once, save it**.
 GET /api/users/me
 X-API-Key: <key>
 ```
-Identify the current user by API key. Used by the sign-in flow to look up a user when only the key is known.
+Identify the current user by API key. Used by the sign-in flow when only the key is known.
 
 ---
 
@@ -83,10 +84,17 @@ Get user profile. Includes `gdrive_folder_id` and `gdrive_folder_url` once a run
 ---
 
 ```
-GET /api/users/:id/runs
+GET /api/users/:id/runs?limit=50&offset=0
 X-API-Key: <key>
 ```
-List all runs for a user, newest first. Returns lightweight summary objects — no `playbook_text` or `import_file_content`. Use `GET /api/runs/:id` for full results.
+List runs for a user, newest first. Returns lightweight summary objects — no `playbook_text` or `import_file_content`. Use `GET /api/runs/:id` for full results.
+
+**Query parameters:**
+
+| Parameter | Default | Max | Description |
+|---|---|---|---|
+| `limit` | `50` | `500` | Number of runs to return |
+| `offset` | `0` | — | Pagination offset |
 
 ---
 
@@ -102,14 +110,14 @@ Request an API key recovery email.
 
 Always returns `200 OK` with the same neutral message regardless of whether the email is registered (prevents account enumeration). If the email is found, a one-time recovery link is sent via Resend and expires in **15 minutes**.
 
-> **Local dev:** If `RESEND_API_KEY` is not set, the recovery URL is printed to the server console instead of being emailed.
+> **Local dev:** If `RESEND_API_KEY` is not set, the recovery URL is printed to the server console.
 
 ---
 
 ```
 GET /api/users/recover/:token
 ```
-Exchange a recovery token for a new API key. The token is single-use and invalidated immediately on redemption. The previous API key is permanently replaced.
+Exchange a recovery token for a new API key. Single-use — invalidated immediately on redemption. Previous key is permanently replaced.
 
 | Field | Type | Description |
 |---|---|---|
@@ -118,7 +126,7 @@ Exchange a recovery token for a new API key. The token is single-use and invalid
 | `email` | string | Registered email |
 | `name` | string \| null | Display name |
 
-Errors: `400` if the token is invalid, already used, or expired.
+Errors: `400` for invalid, already-used, or expired tokens.
 
 ---
 
@@ -142,7 +150,7 @@ Content-Type: application/json
 
 **Async** — returns `202 Accepted` immediately with `status: "pending"`. Claude + Drive upload run in the background. Poll `GET /api/runs/:id` until `status` is `"completed"` or `"failed"` (typically 30–60 seconds).
 
-> **File upload note:** The frontend reads the file as text client-side and sends it in `fileContent`. Chrome on macOS can block this with a `NotReadableError` for files with emoji in the filename. The UI automatically opens a paste textarea as a fallback — open the file in any text editor, copy all, and paste.
+> **File upload note:** The frontend reads the file as text client-side and sends it in `fileContent`. Chrome on macOS can block this with a `NotReadableError` for files with emoji in the name — the UI opens a paste textarea automatically as a fallback.
 
 ---
 
@@ -155,17 +163,17 @@ X-API-Key: <key>
 |---|---|---|
 | `id` | string | Run UUID |
 | `user_id` | string | Owning user UUID |
-| `source` | string | Source platform |
+| `source` | string \| null | Source platform. Null for Build Guide runs. |
 | `destination` | string | Destination platform |
 | `description` | string \| null | Description submitted with the run |
-| `original_filename` | string \| null | Uploaded filename, if provided |
+| `original_filename` | string \| null | Uploaded filename, if any |
 | `status` | string | `pending` → `processing` → `completed` \| `failed` |
 | `playbook_text` | string \| null | Full migration guide in markdown. Populated when `completed`. |
-| `import_file_content` | string \| null | Ready-to-import workflow file text. Null for platforms that don't support import (e.g. Zapier). |
+| `import_file_content` | string \| null | Ready-to-import workflow file text. Null if platform doesn't support import (e.g. Zapier). |
 | `import_file_name` | string \| null | Suggested filename (e.g. `flowshift_zapier_to_n8n.json`) |
 | `import_file_extension` | string \| null | Extension without dot (e.g. `json`) |
 | `has_import_file` | boolean | `true` when `import_file_content` is non-null |
-| `gdrive_run_folder_url` | string \| null | Drive folder containing `playbook.md` and the import file. Null if Drive is not authorized. |
+| `gdrive_run_folder_url` | string \| null | Drive folder URL. Null if Drive is not authorized. |
 | `error_message` | string \| null | Error details when `status` is `failed` |
 | `created_at` | string | ISO 8601 UTC |
 | `completed_at` | string \| null | ISO 8601 UTC. Null while pending or processing. |
@@ -179,7 +187,20 @@ GET /auth/google            → redirects to Google consent screen
 GET /auth/google/callback   → exchanges code, stores refresh token in DB
 ```
 
-Visit `/auth/google` once in a browser to authorize Drive access. The refresh token is stored in the database and reused automatically — no re-authorization needed across deploys.
+Visit `/auth/google` once in a browser. The refresh token is stored in the database and reused automatically — no re-authorization needed across deploys.
+
+---
+
+### Slack (webhook receivers)
+
+These endpoints are called by Slack's infrastructure, not by API consumers directly. See [SLACK_SETUP.md](./SLACK_SETUP.md) for the full setup guide.
+
+```
+POST /slack/commands       — receives /flowshift slash commands
+POST /slack/interactions   — receives modal submissions and button clicks
+```
+
+Both endpoints verify Slack's HMAC-SHA256 request signature before processing. Requests older than 5 minutes are rejected (replay-attack prevention).
 
 ---
 
@@ -188,6 +209,36 @@ Visit `/auth/google` once in a browser to authorize Drive access. The refresh to
 ```
 GET /health   → { "status": "ok", "service": "flowshift-api", "timestamp": "..." }
 ```
+
+---
+
+## Slack bot
+
+The FlowShift Slack bot maps the full API surface to native Slack patterns.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `/flowshift` | Opens a Block Kit modal — platform pickers, description textarea, file upload |
+| `/flowshift new` | Same as above |
+| `/flowshift list` | Shows your last 5 runs with status badges (ephemeral) |
+| `/flowshift status <run-id>` | Checks the status of a specific run (first 8 chars of ID work) |
+| `/flowshift link <api-key>` | Links your Slack account to your FlowShift account |
+| `/flowshift unlink` | Removes the Slack ↔ FlowShift account link |
+| `/flowshift help` | Shows the command reference |
+
+### Result delivery
+
+When a run completes, FlowShift DMs you with:
+- ✅ A rich message with a playbook preview and action buttons (*View Full Playbook*, *Open in Drive*)
+- 📎 The import file uploaded as a Slack file attachment (if the platform supports it)
+
+### User linking
+
+The bot does not auto-create accounts. Register at `https://flowshift-cdl.fly.dev/auth`, then run `/flowshift link <api-key>` once. All subsequent runs use the linked account automatically.
+
+**→ Full Slack app setup guide: [SLACK_SETUP.md](./SLACK_SETUP.md)**
 
 ---
 
@@ -205,17 +256,17 @@ Parent folder (your GDrive, authorized via OAuth)
 
 ## Frontend
 
-The React SPA is built by Vite and served as static files from the same Express process. Routes:
+The React SPA is built by Vite and served as static files from the same Express process.
 
 | Page | Path | Description |
 |---|---|---|
 | Auth | `/auth` | Register · Sign In · "Forgot your API key?" recovery form |
-| Dashboard | `/` | Run history with status badges, Drive links, stats panel, and an API key show/copy widget |
-| New Migration | `/runs/new` | Platform picker, description textarea, file upload (drag-and-drop or browse), and paste fallback |
-| Run Detail | `/runs/:id` | Playbook tab (rendered markdown), Import File tab (syntax-highlighted, copy + download), Drive link |
-| Recover | `/recover?token=<uuid>` | Exchanges a recovery token for a new API key, displays it with a copy button, auto-signs in |
+| Dashboard | `/` | Run history with status badges, Drive links, stats panel, API key widget |
+| New Migration | `/runs/new` | Platform pickers (source optional), markdown description editor, file upload with paste fallback |
+| Run Detail | `/runs/:id` | Playbook tab (rendered markdown), Import File tab (copy + download), Drive link, import caveat banners |
+| Recover | `/recover?token=<uuid>` | Exchanges a recovery token for a new API key, auto-signs in |
 
-The run detail page polls `GET /api/runs/:id` every 3 seconds while status is `pending` or `processing`, then renders results automatically when the run completes.
+The run detail page polls `GET /api/runs/:id` every 3 seconds while the run is in-flight, stopping automatically after 10 minutes and showing a manual refresh button.
 
 ---
 
@@ -238,7 +289,7 @@ cp .env.example .env
 npm run dev
 
 # In a second terminal — frontend dev server (port 5173)
-# Proxies /api and /auth to localhost:8080 automatically
+# Proxies /api, /auth, and /slack to localhost:8080 automatically
 cd frontend && npm run dev
 ```
 
@@ -246,15 +297,46 @@ cd frontend && npm run dev
 
 ## Environment variables
 
+### Required
+
+| Variable | Description |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+
+### Optional — Claude tuning
+
 | Variable | Default | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Anthropic API key (required) |
 | `CLAUDE_MODEL` | `claude-opus-4-7` | Claude model ID |
 | `MAX_TOKENS` | `8192` | Max tokens for Claude responses |
-| `GOOGLE_OAUTH_CLIENT_ID` | — | GCP OAuth 2.0 client ID (Web application) |
+
+### Optional — Email recovery (disabled if unset)
+
+| Variable | Default | Description |
+|---|---|---|
+| `RESEND_API_KEY` | — | Resend API key for sending recovery emails |
+| `FROM_EMAIL` | `noreply@flowshift.io` | Sender address for recovery emails |
+
+### Optional — Google Drive (uploads disabled if unset)
+
+| Variable | Default | Description |
+|---|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | — | GCP OAuth 2.0 client ID (Web application type) |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | — | GCP OAuth 2.0 client secret |
-| `GDRIVE_PARENT_FOLDER_ID` | `11BCUCoM3a0di8tYiz-r9EOuQ7AZlt7FU` | Parent GDrive folder — user subfolders are created here |
-| `APP_URL` | `https://flowshift-cdl.fly.dev` | Public base URL — used to build the OAuth callback URI |
+| `GDRIVE_PARENT_FOLDER_ID` | `11BCUCoM3a0di8tYiz-r9EOuQ7AZlt7FU` | Parent folder — user subfolders created here |
+| `APP_URL` | `https://flowshift-cdl.fly.dev` | Public base URL — used to build OAuth callback URIs |
+
+### Optional — Slack bot (disabled if unset)
+
+| Variable | Description |
+|---|---|
+| `SLACK_BOT_TOKEN` | Bot User OAuth Token (starts with `xoxb-`) |
+| `SLACK_SIGNING_SECRET` | Signing secret from Slack app Basic Information page |
+
+### Infrastructure
+
+| Variable | Default | Description |
+|---|---|---|
 | `PORT` | `8080` | Server port |
 | `DATABASE_PATH` | `./flowshift.db` | SQLite file path (`/data/flowshift.db` in production) |
 
@@ -266,7 +348,20 @@ cd frontend && npm run dev
 2. **OAuth 2.0 Client ID** — type: Web application, redirect URI: `https://<your-host>/auth/google/callback`
 3. **Test users** — add your Google account email (required until the app passes Google verification)
 4. Set `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` as Fly.io secrets
-5. Visit `https://<your-host>/auth/google` in a browser and approve — the refresh token is stored automatically
+5. Visit `https://<your-host>/auth/google` in a browser and approve — refresh token stored automatically
+
+---
+
+## Slack setup
+
+See **[SLACK_SETUP.md](./SLACK_SETUP.md)** for the complete step-by-step guide.
+
+Quick summary:
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
+2. Add bot scopes, slash command, and interactivity pointing to your Fly.io URL
+3. Install to your workspace and copy the Bot Token + Signing Secret
+4. `fly secrets set SLACK_BOT_TOKEN="xoxb-..." SLACK_SIGNING_SECRET="..." --app flowshift-cdl`
+5. `/flowshift link <your-api-key>` in Slack — done
 
 ---
 
@@ -277,18 +372,25 @@ cd frontend && npm run dev
 fly apps create flowshift-cdl
 fly volumes create flowshift_data --region iad --size 1 --app flowshift-cdl
 
-# Secrets
+# Required secret
+fly secrets set ANTHROPIC_API_KEY="sk-ant-..." --app flowshift-cdl
+
+# Optional secrets (add as needed)
 fly secrets set \
-  ANTHROPIC_API_KEY="sk-ant-..." \
   GOOGLE_OAUTH_CLIENT_ID="..." \
   GOOGLE_OAUTH_CLIENT_SECRET="..." \
+  RESEND_API_KEY="re_..." \
+  FROM_EMAIL="noreply@yourdomain.com" \
+  SLACK_BOT_TOKEN="xoxb-..." \
+  SLACK_SIGNING_SECRET="..." \
   --app flowshift-cdl
 
 # Deploy
 fly deploy --app flowshift-cdl
 
-# Authorize Drive (one-time, after first deploy)
-# Open in a browser: https://flowshift-cdl.fly.dev/auth/google
+# One-time post-deploy steps
+# Drive:  open https://flowshift-cdl.fly.dev/auth/google in a browser
+# Slack:  /flowshift link <api-key> in Slack
 ```
 
 **Infrastructure notes:**
@@ -296,3 +398,4 @@ fly deploy --app flowshift-cdl
 - SQLite on a persistent 1 GB volume mounted at `/data`
 - `auto_stop_machines = false` — machine stays running so background run processing is never interrupted
 - Health check at `GET /health` every 15 seconds
+- VM: `shared-cpu-1x` · 512 MB RAM

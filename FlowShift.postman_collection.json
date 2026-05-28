@@ -2,7 +2,7 @@
   "info": {
     "name": "FlowShift API",
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "description": "## FlowShift \u2014 iPaaS Migration Playbook Generator\n\nFlowShift converts workflows between iPaaS platforms (n8n, Make, Zapier, Tray, Boomi, Workato, Celigo, Power Automate) using Claude AI. Submit a source workflow \u2014 as a file or plain-text description \u2014 and receive a detailed migration playbook plus a ready-to-import destination workflow file.\n\n---\n\n### Authentication\n\nAll `/api/*` endpoints require an `X-API-Key` header. The key is returned **once** when you register and is stored in the `{{api_key}}` collection variable automatically.\n\n```\nX-API-Key: {{api_key}}\n```\n\n---\n\n### Quick start\n\n1. **Register** \u2014 run *Register User* to create an account. `api_key` and `user_id` are saved to collection variables automatically.\n2. **Submit a run** \u2014 run *Create Run (description only)* or *Create Run (with file content)*. The `run_id` is saved automatically.\n3. **Poll for results** \u2014 run *Get Run* every few seconds until `status` is `completed`. The response includes the full playbook text and import file content.\n4. **Browse history** \u2014 run *List User Runs* at any time to see all past migrations.\n\n**Lost your API key?** Use *Request Recovery Email* (enter your registered email), then click the link in the email. *Redeem Recovery Token* exchanges the token for a new API key and auto-saves it.\n\n---\n\n### Collection variables\n\n| Variable | Set by | Description |\n|---|---|---|\n| `base_url` | You | API base URL (default: `https://flowshift-cdl.fly.dev`) |\n| `api_key` | Register User (auto) | Your API key \u2014 required on all authenticated requests |\n| `user_id` | Register User (auto) | Your user ID |\n| `run_id` | Create Run (auto) | Most recently created run ID |\n\n### File uploads\n\nThe API accepts file content as a plain JSON string in `fileContent` \u2014 no binary upload. Read the file in a text editor, copy all, and paste into the request body. Chrome on macOS may block programmatic file reads (`NotReadableError`) for files with emoji in the filename; the web UI handles this automatically via a paste fallback.\n\n---\n\n### Run status lifecycle\n\n```\npending \u2192 processing \u2192 completed\n                    \u2198 failed\n```\n\n`POST /api/runs` returns `202 Accepted` with `status: pending` immediately. Claude processes the migration in the background (typically 30\u201360 seconds). Poll `GET /api/runs/:id` until status reaches a terminal state.",
+    "description": "## FlowShift \u2014 iPaaS Migration Playbook Generator\n\nFlowShift converts workflows between iPaaS platforms (n8n, Make, Zapier, Tray, Boomi, Workato, Celigo, Power Automate) using Claude AI. Submit a source workflow \u2014 as a file or plain-text description \u2014 and receive a detailed migration playbook plus a ready-to-import destination workflow file.\n\n---\n\n### Authentication\n\nAll `/api/*` endpoints require an `X-API-Key` header. The key is returned **once** when you register and is stored in the `{{api_key}}` collection variable automatically.\n\n```\nX-API-Key: {{api_key}}\n```\n\n---\n\n### Quick start\n\n1. **Register** \u2014 run *Register User* to create an account. `api_key` and `user_id` are saved to collection variables automatically.\n2. **Submit a run** \u2014 run *Create Run (description only)* or *Create Run (with file content)*. The `run_id` is saved automatically.\n3. **Poll for results** \u2014 run *Get Run* every few seconds until `status` is `completed`. The response includes the full playbook text and import file content.\n4. **Browse history** \u2014 run *List User Runs* at any time to see all past migrations.\n\n**Slack bot:** Type `/flowshift link <api-key>` in Slack after installing the app (see `SLACK_SETUP.md`). All commands \u2014 new runs, list, status \u2014 are available via `/flowshift` without touching the REST API directly.\n\n**Lost your API key?** Use *Request Recovery Email* (enter your registered email), then click the link in the email. *Redeem Recovery Token* exchanges the token for a new API key and auto-saves it.\n\n---\n\n### Collection variables\n\n| Variable | Set by | Description |\n|---|---|---|\n| `base_url` | You | API base URL (default: `https://flowshift-cdl.fly.dev`) |\n| `api_key` | Register User (auto) | Your API key \u2014 required on all authenticated requests |\n| `user_id` | Register User (auto) | Your user ID |\n| `run_id` | Create Run (auto) | Most recently created run ID |\n\n### File uploads\n\nThe API accepts file content as a plain JSON string in `fileContent` \u2014 no binary upload. Read the file in a text editor, copy all, and paste into the request body. Chrome on macOS may block programmatic file reads (`NotReadableError`) for files with emoji in the filename; the web UI handles this automatically via a paste fallback.\n\n---\n\n### Run status lifecycle\n\n```\npending \u2192 processing \u2192 completed\n                    \u2198 failed\n```\n\n`POST /api/runs` returns `202 Accepted` with `status: pending` immediately. Claude processes the migration in the background (typically 30\u201360 seconds). Poll `GET /api/runs/:id` until status reaches a terminal state.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -335,7 +335,7 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/api/users/{{user_id}}/runs",
+              "raw": "{{base_url}}/api/users/{{user_id}}/runs?limit=50&offset=0",
               "host": [
                 "{{base_url}}"
               ],
@@ -344,9 +344,21 @@
                 "users",
                 "{{user_id}}",
                 "runs"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of runs to return (default: 50, max: 500)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset (default: 0)"
+                }
               ]
             },
-            "description": "Returns a summary list of all migration runs for the authenticated user, ordered newest first. This endpoint returns lightweight summary objects \u2014 it does not include `playbook_text` or `import_file_content`. Use `GET /api/runs/:id` to fetch full results for a specific run.\n\n**Authentication:** `X-API-Key` header required.\n\n**Path parameters:**\n\n| Parameter | Description |\n|---|---|\n| `:id` | User UUID (stored in `{{user_id}}`) |\n\n**Run summary fields:**\n\n| Field | Type | Description |\n|---|---|---|\n| `id` | string (UUID) | Run ID \u2014 use with `GET /api/runs/:id` |\n| `source` | string | Source platform |\n| `destination` | string | Destination platform |\n| `status` | string | `pending` \\| `processing` \\| `completed` \\| `failed` |\n| `original_filename` | string \\| null | Name of the uploaded file, if any |\n| `gdrive_run_folder_url` | string \\| null | Drive folder URL. Null if Drive is not authorized or run hasn't completed. |\n| `error_message` | string \\| null | Error details when `status` is `failed` |\n| `created_at` | string | ISO 8601 UTC timestamp |\n| `completed_at` | string \\| null | ISO 8601 UTC timestamp. Null while pending or processing. |"
+            "description": "List runs for a user, ordered newest first. Supports pagination via `limit` and `offset` query parameters.\n\n**Query parameters:**\n\n| Parameter | Default | Max | Description |\n|---|---|---|---|\n| `limit` | `50` | `500` | Number of runs to return |\n| `offset` | `0` | \u2014 | Pagination offset |\n\nReturns `{ runs: [...], limit, offset }`. Summary objects only \u2014 no `playbook_text` or `import_file_content`.\nUse `GET /api/runs/:id` for full run details.\n\n**Authentication:** `X-API-Key` header required.\n\n**Path parameters:**\n\n| Parameter | Description |\n|---|---|\n| `:id` | User UUID (stored in `{{user_id}}`) |"
           },
           "response": [
             {
@@ -1037,6 +1049,179 @@
               "status": "Service Unavailable",
               "code": 503,
               "body": "{\n  \"error\": \"OAuth not configured\",\n  \"hint\": \"Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET as Fly.io secrets\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Slack (Webhook Receivers)",
+      "description": "These endpoints are **called by Slack's infrastructure**, not by API consumers directly. They verify Slack's HMAC-SHA256 request signature on every request and reject anything older than 5 minutes.\n\n**Setup:** See `SLACK_SETUP.md` in the repository root for the complete step-by-step guide.\n\n**Required Fly.io secrets:** `SLACK_BOT_TOKEN` (starts with `xoxb-`) and `SLACK_SIGNING_SECRET`.\n\n**User linking:** Users must run `/flowshift link <api-key>` in Slack before running any commands. This maps their Slack user ID to their FlowShift account.\n\n**Result delivery:** When a run completes, FlowShift sends a DM containing a playbook preview, action buttons (View Full Playbook, Open in Drive), and the import file uploaded as a Slack file attachment.",
+      "item": [
+        {
+          "name": "Slash Command Handler",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "X-Slack-Request-Timestamp",
+                "value": "<unix-timestamp>",
+                "description": "Set by Slack automatically"
+              },
+              {
+                "key": "X-Slack-Signature",
+                "value": "v0=<hmac-sha256>",
+                "description": "Set by Slack automatically"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "command",
+                  "value": "/flowshift",
+                  "description": "The slash command"
+                },
+                {
+                  "key": "text",
+                  "value": "",
+                  "description": "Text after the command (e.g. 'list', 'status abc123', 'link <key>', 'help')"
+                },
+                {
+                  "key": "user_id",
+                  "value": "U012AB3CD",
+                  "description": "Slack user ID"
+                },
+                {
+                  "key": "team_id",
+                  "value": "T012AB3CD",
+                  "description": "Slack workspace ID"
+                },
+                {
+                  "key": "channel_id",
+                  "value": "C012AB3CD",
+                  "description": "Channel where the command was typed"
+                },
+                {
+                  "key": "trigger_id",
+                  "value": "<trigger-id>",
+                  "description": "Required to open a modal (valid for 3 seconds)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/slack/commands",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "slack",
+                "commands"
+              ]
+            },
+            "description": "Receives all `/flowshift` slash commands from Slack. Slack posts `application/x-www-form-urlencoded` with a 3-second response deadline \u2014 the handler acknowledges with `200 OK` immediately and processes asynchronously.\n\n**Authentication:** HMAC-SHA256 request signature verified against `SLACK_SIGNING_SECRET`. Requests older than 5 minutes are rejected.\n\n**Supported `text` values:**\n\n| `text` value | Behaviour |\n|---|---|\n| *(empty)* or `new` | Opens the Block Kit migration modal |\n| `list` | Posts an ephemeral message with the last 5 runs |\n| `status <run-id>` | Posts an ephemeral status for the specified run (first 8 chars work) |\n| `link <api-key>` | Links the Slack user to their FlowShift account |\n| `unlink` | Removes the account link |\n| `help` | Posts the command reference as an ephemeral message |\n\n**Modal fields** (when `text` is empty or `new`):\n\n| Field | Required | Notes |\n|---|---|---|\n| Source Platform | No | `static_select` \u2014 leave blank for Build Guide mode |\n| Destination Platform | Yes | `static_select` |\n| Workflow Description | One of \u2020 | `plain_text_input` multiline \u2014 max 3,000 chars, markdown supported |\n| Workflow File | One of \u2020 | `file_input` \u2014 JSON, YAML, XML, TXT. Bot downloads it via Slack Files API. |\n\n\u2020 At least one must be provided.\n\n**Note:** This endpoint is not designed to be called from Postman. Slack signs every request with a secret your server must verify, so manual calls will always return 401."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 acknowledged",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/slack/commands"
+                }
+              },
+              "_postman_previewlanguage": "text",
+              "status": "OK",
+              "code": 200,
+              "body": ""
+            },
+            {
+              "name": "401 Unauthorized \u2014 invalid signature",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/slack/commands"
+                }
+              },
+              "_postman_previewlanguage": "json",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"error\": \"Invalid Slack signature\"\n}"
+            },
+            {
+              "name": "503 Service Unavailable \u2014 Slack not configured",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/slack/commands"
+                }
+              },
+              "_postman_previewlanguage": "json",
+              "status": "Service Unavailable",
+              "code": 503,
+              "body": "{\n  \"error\": \"Slack integration not configured\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Interaction Handler (modal submit / buttons)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              },
+              {
+                "key": "X-Slack-Request-Timestamp",
+                "value": "<unix-timestamp>",
+                "description": "Set by Slack automatically"
+              },
+              {
+                "key": "X-Slack-Signature",
+                "value": "v0=<hmac-sha256>",
+                "description": "Set by Slack automatically"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "payload",
+                  "value": "{\"type\":\"view_submission\",\"view\":{\"callback_id\":\"flowshift_new_run\"},...}",
+                  "description": "URL-encoded JSON payload from Slack"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/slack/interactions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "slack",
+                "interactions"
+              ]
+            },
+            "description": "Receives interactive component payloads from Slack \u2014 modal submissions and button clicks. Slack posts `application/x-www-form-urlencoded` with a `payload` field containing a JSON object.\n\n**Authentication:** Same HMAC-SHA256 signature verification as the commands endpoint.\n\n**Handled payload types:**\n\n| `type` | `callback_id` / `action_id` | Behaviour |\n|---|---|---|\n| `view_submission` | `flowshift_new_run` | Creates a run from the modal form values. Downloads any uploaded file via Slack Files API, creates the FlowShift run record, sends a *'Processing...'* DM, then processes Claude + Drive upload in the background. When complete, sends a rich DM with playbook preview, action buttons, and the import file as a Slack attachment. |\n\n**Run creation flow on modal submit:**\n1. Validate platform inputs\n2. Download uploaded file content from Slack (if provided)\n3. Open a DM channel with the user\n4. Insert run record with `status: pending`\n5. Insert `slack_runs` record to link run \u2192 DM channel\n6. Send *'Generating your playbook...'* DM with run ID\n7. Respond `200 OK` (empty body \u2014 closes the modal)\n8. Process Claude + Drive upload asynchronously in background\n9. On completion: send DM with results + upload import file\n\n**Note:** Like the commands endpoint, this is not designed to be called from Postman directly."
+          },
+          "response": [
+            {
+              "name": "200 OK \u2014 modal closed",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/slack/interactions"
+                }
+              },
+              "_postman_previewlanguage": "text",
+              "status": "OK",
+              "code": 200,
+              "body": ""
             }
           ]
         }
