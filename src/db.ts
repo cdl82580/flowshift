@@ -55,6 +55,21 @@ export async function initDb(): Promise<void> {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS slack_users (
+      slack_user_id       TEXT NOT NULL,
+      slack_workspace_id  TEXT NOT NULL,
+      flowshift_user_id   TEXT NOT NULL REFERENCES users(id),
+      created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (slack_user_id, slack_workspace_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS slack_runs (
+      run_id            TEXT PRIMARY KEY REFERENCES runs(id),
+      slack_user_id     TEXT NOT NULL,
+      slack_channel_id  TEXT NOT NULL,
+      created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version    TEXT PRIMARY KEY,
       applied_at TEXT NOT NULL DEFAULT (datetime('now'))

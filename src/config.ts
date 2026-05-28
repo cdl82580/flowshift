@@ -21,6 +21,11 @@ export const config = {
   resendApiKey: process.env.RESEND_API_KEY || '',
   fromEmail:    process.env.FROM_EMAIL    || 'noreply@flowshift.io',
 
+  // ── Optional — Slack bot (Slack commands disabled if unset) ──────────────────
+  slackBotToken:     process.env.SLACK_BOT_TOKEN      || '',
+  slackSigningSecret: process.env.SLACK_SIGNING_SECRET || '',
+  slackEnabled: !!(process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET),
+
   // ── Optional — Google Drive output (Drive uploads disabled if unset) ───────
   googleOauthClientId:     process.env.GOOGLE_OAUTH_CLIENT_ID     || '',
   googleOauthClientSecret: process.env.GOOGLE_OAUTH_CLIENT_SECRET || '',

@@ -7,8 +7,9 @@ import fs from 'fs';
 import { config } from './config';
 import { initDb } from './db';
 import usersRouter from './routes/users';
-import runsRouter from './routes/runs';
-import authRouter from './routes/auth';
+import runsRouter  from './routes/runs';
+import authRouter  from './routes/auth';
+import slackRouter from './routes/slack';
 
 const app = express();
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
@@ -67,6 +68,9 @@ const registerLimiter = rateLimit({
   message: tooManyRequests,
 });
 
+// ── Slack routes — must come BEFORE global body parsers (needs raw body) ──────
+app.use('/slack', slackRouter);
+
 // ── Static frontend ───────────────────────────────────────────────────────────
 app.use(express.static(PUBLIC_DIR));
 
@@ -95,6 +99,7 @@ initDb()
     app.listen(config.port, () => {
       console.log(`FlowShift API running on port ${config.port}`);
       console.log(`Drive integration: ${config.driveEnabled ? 'enabled' : 'disabled'}`);
+      console.log(`Slack integration: ${config.slackEnabled ? 'enabled' : 'disabled'}`);
       console.log(`Frontend: ${fs.existsSync(PUBLIC_DIR) ? 'serving from ' + PUBLIC_DIR : 'not built'}`);
       console.log(`Environment: ${isProd ? 'production' : 'development'}`);
     });
