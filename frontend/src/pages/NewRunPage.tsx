@@ -60,7 +60,7 @@ export function NewRunPage() {
 
     const onFinalError = (code: string) => {
       setFileName(null);
-      setError(`File read failed (${code}). Paste the content below instead.`);
+      setError(`File read failed (${code}). Use the paste box above to submit your workflow.`);
       setShowPaste(true);
     };
 
