@@ -106,25 +106,33 @@ Alternatively, just type `/flowshift help` in any channel — Slack will ask you
 
 ---
 
-## Step 9 — Link your FlowShift account
+## Step 9 — Connect your FlowShift account
 
-In any Slack channel or DM, type:
+**Option A — New user (no FlowShift account yet):**
+```
+/flowshift register
+```
+A modal opens asking for your name (optional). Your Slack profile email is used automatically. After submitting, FlowShift DMs you your new API key and auto-links your Slack account. You're ready immediately.
 
+**Option B — Existing user (already have an account):**
 ```
 /flowshift link <your-api-key>
 ```
+Your API key is shown on the FlowShift dashboard at `https://flowshift-cdl.fly.dev`. Run this once to connect Slack.
 
-Your API key is displayed on the FlowShift dashboard at `https://flowshift-cdl.fly.dev`. If you've lost it, use `POST /api/users/recover` via the web app to get a new one, then link with the new key.
-
-You'll see:
-> ✅ Linked to FlowShift account **your@email.com**. Type `/flowshift` to start a migration.
+**Forgot your API key?**
+```
+/flowshift forgot
+```
+Sends a recovery link to your Slack profile email. Click the link to get a new API key, then run `/flowshift link <new-key>`.
 
 ---
 
 ## You're live. Try it:
 
 ```
-/flowshift              → opens the migration modal
+/flowshift register     → create account + auto-link (new users)
+/flowshift              → open the migration modal
 /flowshift list         → see your last 5 runs
 /flowshift help         → full command reference
 ```
@@ -189,7 +197,10 @@ FlowShift sends you a DM containing:
 → Ensure the `files:read` scope is added (Step 2) and the app is re-installed after adding the scope.
 
 **`/flowshift list` or `/flowshift status` says "Link your account first"**
-→ Run `/flowshift link <api-key>` (Step 9).
+→ Use `/flowshift register` (new user) or `/flowshift link <api-key>` (existing user) — see Step 9.
+
+**`/flowshift register` or `/flowshift forgot` says "Could not read your Slack account email"**
+→ The `users:read.email` scope is missing. Add it under **OAuth & Permissions → Bot Token Scopes** and reinstall the app (Step 2 + Step 5).
 
 ---
 

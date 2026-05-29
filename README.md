@@ -220,11 +220,13 @@ The FlowShift Slack bot maps the full API surface to native Slack patterns.
 
 | Command | What it does |
 |---|---|
+| `/flowshift register` | Create a new FlowShift account using your Slack email — API key sent as DM, account auto-linked |
+| `/flowshift link <api-key>` | Link an existing FlowShift account to your Slack |
+| `/flowshift forgot` | Send a recovery link to your Slack email to get a new API key |
 | `/flowshift` | Opens a Block Kit modal — platform pickers, description textarea, file upload |
 | `/flowshift new` | Same as above |
 | `/flowshift list` | Shows your last 5 runs with status badges (ephemeral) |
 | `/flowshift status <run-id>` | Checks the status of a specific run (first 8 chars of ID work) |
-| `/flowshift link <api-key>` | Links your Slack account to your FlowShift account |
 | `/flowshift unlink` | Removes the Slack ↔ FlowShift account link |
 | `/flowshift help` | Shows the command reference |
 
@@ -236,7 +238,13 @@ When a run completes, FlowShift DMs you with:
 
 ### User linking
 
-The bot does not auto-create accounts. Register at `https://flowshift-cdl.fly.dev/auth`, then run `/flowshift link <api-key>` once. All subsequent runs use the linked account automatically.
+Three ways to get started in Slack:
+
+1. **New user** — `/flowshift register` creates an account using your Slack profile email, auto-links your Slack account, and DMs you the API key.
+2. **Existing user** — `/flowshift link <api-key>` links your current account.
+3. **Forgot your key** — `/flowshift forgot` sends a recovery link to your Slack email.
+
+> **Security note:** `register` and `forgot` both read your email from your verified Slack profile (requires the `users:read.email` scope) — they do not accept a user-supplied email address. This ensures users can only register or recover their own account.
 
 **→ Full Slack app setup guide: [SLACK_SETUP.md](./SLACK_SETUP.md)**
 
@@ -358,10 +366,10 @@ See **[SLACK_SETUP.md](./SLACK_SETUP.md)** for the complete step-by-step guide.
 
 Quick summary:
 1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
-2. Add bot scopes, slash command, and interactivity pointing to your Fly.io URL
+2. Add bot scopes (including `users:read.email`), slash command, and interactivity pointing to your Fly.io URL
 3. Install to your workspace and copy the Bot Token + Signing Secret
 4. `fly secrets set SLACK_BOT_TOKEN="xoxb-..." SLACK_SIGNING_SECRET="..." --app flowshift-cdl`
-5. `/flowshift link <your-api-key>` in Slack — done
+5. `/flowshift register` to create an account, or `/flowshift link <api-key>` to connect an existing one
 
 ---
 
@@ -390,7 +398,8 @@ fly deploy --app flowshift-cdl
 
 # One-time post-deploy steps
 # Drive:  open https://flowshift-cdl.fly.dev/auth/google in a browser
-# Slack:  /flowshift link <api-key> in Slack
+# Slack:  /flowshift register  (new user)
+#         /flowshift link <api-key>  (existing user)
 ```
 
 **Infrastructure notes:**
