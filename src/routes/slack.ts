@@ -204,7 +204,10 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
     // ── /flowshift status <run-id> ────────────────────────────────────────────
     if (text.startsWith('status')) {
       const parts = text.split(/\s+/);
-      const runIdFragment = parts[1] || '';
+      // Strip any surrounding punctuation Slack may inject when copying from
+      // a rendered message (backticks, underscores, quotes, angle brackets, etc.)
+      const rawFragment = parts.slice(1).join('').trim();
+      const runIdFragment = rawFragment.replace(/^[^a-f0-9]+/i, '').replace(/[^a-f0-9-]+$/i, '');
       if (!runIdFragment) {
         await reply(responseUrl, {
           text: 'Usage: `/flowshift status <run-id>` (first 8 chars of the ID work too)',
