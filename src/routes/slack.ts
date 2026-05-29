@@ -65,6 +65,21 @@ function requireSlackSignature(req: Request, res: Response, next: () => void): v
   next();
 }
 
+// ── response_url helper ───────────────────────────────────────────────────────
+// Use response_url instead of chat.postEphemeral for all slash command replies.
+// Benefits: no channel membership required, works in any channel/DM, valid for
+// 5 minutes after the command.
+async function reply(
+  responseUrl: string,
+  payload: { text: string; blocks?: unknown[] },
+): Promise<void> {
+  await fetch(responseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ response_type: 'ephemeral', ...payload }),
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // POST /slack/commands   — /flowshift <text>
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -73,10 +88,11 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
   const slackUserId = body.user_id;
   const workspaceId = body.team_id;
   const triggerId   = body.trigger_id;
-  const channelId   = body.channel_id;
+  const responseUrl = body.response_url;   // ← use this instead of postEphemeral
   const text        = (body.text || '').trim().toLowerCase();
 
-  // Acknowledge immediately — Slack requires a response within 3 seconds
+  // Acknowledge immediately — Slack requires a response within 3 seconds.
+  // Everything else happens asynchronously after this point.
   res.status(200).send();
 
   const db = getDb();
@@ -85,27 +101,23 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
   try {
     // ── /flowshift help ──────────────────────────────────────────────────────
     if (text === 'help') {
-      await slack.chat.postEphemeral({
-        channel: channelId,
-        user: slackUserId,
+      await reply(responseUrl, {
         text: 'FlowShift help',
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: '*FlowShift — iPaaS Migration Playbook Generator* ⚡\n\n' +
-                '*Commands:*\n' +
-                '• `/flowshift` or `/flowshift new` — open the migration form\n' +
-                '• `/flowshift list` — show your last 5 runs\n' +
-                '• `/flowshift status <run-id>` — check status of a specific run\n' +
-                '• `/flowshift link <api-key>` — link your FlowShift account\n' +
-                '• `/flowshift unlink` — unlink your account from Slack\n' +
-                '• `/flowshift help` — show this message\n\n' +
-                `*Web app:* <${config.appUrl}|${config.appUrl}>`,
-            },
+        blocks: [{
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '*FlowShift — iPaaS Migration Playbook Generator* ⚡\n\n' +
+              '*Commands:*\n' +
+              '• `/flowshift` or `/flowshift new` — open the migration form\n' +
+              '• `/flowshift list` — show your last 5 runs\n' +
+              '• `/flowshift status <run-id>` — check status of a specific run\n' +
+              '• `/flowshift link <api-key>` — link your FlowShift account\n' +
+              '• `/flowshift unlink` — unlink your account from Slack\n' +
+              '• `/flowshift help` — show this message\n\n' +
+              `*Web app:* <${config.appUrl}|${config.appUrl}>`,
           },
-        ],
+        }],
       });
       return;
     }
@@ -114,19 +126,20 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
     if (text.startsWith('link ')) {
       const apiKey = text.split(' ').slice(1).join(' ').trim();
       if (!apiKey) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: 'Usage: `/flowshift link <your-api-key>`' });
+        await reply(responseUrl, { text: 'Usage: `/flowshift link <your-api-key>`' });
         return;
       }
       const user = await getUserByApiKey(db, apiKey);
       if (!user) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: `❌ API key not recognised. Check your key at <${config.appUrl}/auth|${config.appUrl}/auth>.` });
+        await reply(responseUrl, {
+          text: `❌ API key not recognised. Check your key at <${config.appUrl}/auth|${config.appUrl}/auth>.`,
+        });
         return;
       }
       await linkSlackUser(db, slackUserId, workspaceId, user.id as string);
-      await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-        text: `✅ Linked to FlowShift account *${user.email}*. Type \`/flowshift\` to start a migration.` });
+      await reply(responseUrl, {
+        text: `✅ Linked to FlowShift account *${user.email}*. Type \`/flowshift\` to start a migration.`,
+      });
       return;
     }
 
@@ -136,46 +149,31 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
         sql: 'DELETE FROM slack_users WHERE slack_user_id = ? AND slack_workspace_id = ?',
         args: [slackUserId, workspaceId],
       });
-      await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-        text: '✅ Your Slack account has been unlinked from FlowShift.' });
+      await reply(responseUrl, { text: '✅ Your Slack account has been unlinked from FlowShift.' });
       return;
     }
 
     // All remaining commands require a linked account
     const flowshiftUserId = await getLinkedFlowShiftUserId(db, slackUserId, workspaceId);
     if (!flowshiftUserId) {
-      await slack.chat.postEphemeral({
-        channel: channelId,
-        user: slackUserId,
+      await reply(responseUrl, {
         text: '🔗 Link your FlowShift account first',
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `🔗 *Link your FlowShift account to get started.*\n\n` +
-                `1. Sign in or register at <${config.appUrl}/auth|${config.appUrl}/auth>\n` +
-                `2. Copy your API key from the dashboard\n` +
-                `3. Run \`/flowshift link <api-key>\``,
-            },
+        blocks: [{
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `🔗 *Link your FlowShift account to get started.*\n\n` +
+              `1. Sign in or register at <${config.appUrl}/auth|${config.appUrl}/auth>\n` +
+              `2. Copy your API key from the dashboard\n` +
+              `3. Run \`/flowshift link <api-key>\``,
           },
-        ],
+        }],
       });
       return;
     }
 
     // ── /flowshift list ───────────────────────────────────────────────────────
     if (text === 'list') {
-      const userResult = await db.execute({
-        sql: 'SELECT id FROM users WHERE id = ?',
-        args: [flowshiftUserId],
-      });
-      if (!userResult.rows.length) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: '❌ Could not find your FlowShift user. Try `/flowshift link <api-key>` again.' });
-        return;
-      }
-
       const runs = await db.execute({
         sql: `SELECT id, source, destination, status, created_at
               FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT 5`,
@@ -183,24 +181,22 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
       });
 
       if (!runs.rows.length) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: `No runs yet. Type \`/flowshift\` to start your first migration!` });
+        await reply(responseUrl, {
+          text: `No runs yet. Type \`/flowshift\` to start your first migration!`,
+        });
         return;
       }
 
       const lines = runs.rows.map(r => formatRunSummary(r as Record<string, unknown>)).join('\n');
-      await slack.chat.postEphemeral({
-        channel: channelId, user: slackUserId,
+      await reply(responseUrl, {
         text: 'Your recent FlowShift runs',
-        blocks: [
-          {
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `*Your recent runs:*\n\n${lines}\n\n<${config.appUrl}|View all runs →>`,
-            },
+        blocks: [{
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Your recent runs:*\n\n${lines}\n\n<${config.appUrl}|View all runs →>`,
           },
-        ],
+        }],
       });
       return;
     }
@@ -210,8 +206,9 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
       const parts = text.split(/\s+/);
       const runIdFragment = parts[1] || '';
       if (!runIdFragment) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: 'Usage: `/flowshift status <run-id>` (first 8 chars of the ID work too)' });
+        await reply(responseUrl, {
+          text: 'Usage: `/flowshift status <run-id>` (first 8 chars of the ID work too)',
+        });
         return;
       }
 
@@ -223,16 +220,14 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
       });
 
       if (!run.rows.length) {
-        await slack.chat.postEphemeral({ channel: channelId, user: slackUserId,
-          text: `❌ Run \`${runIdFragment}\` not found.` });
+        await reply(responseUrl, { text: `❌ Run \`${runIdFragment}\` not found.` });
         return;
       }
 
       const r = run.rows[0] as Record<string, unknown>;
       const webUrl = `${config.appUrl}/runs/${r.id}`;
-      await slack.chat.postEphemeral({
-        channel: channelId, user: slackUserId,
-        text: `Run status: ${r.status}`,
+      await reply(responseUrl, {
+        text: `Run status: ${r.status as string}`,
         blocks: [{
           type: 'section',
           text: {
@@ -249,6 +244,8 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
 
   } catch (err) {
     console.error('[slack/commands] error:', err);
+    // Best-effort error reply so the user isn't left with silence
+    await reply(responseUrl, { text: '❌ Something went wrong. Please try again.' }).catch(() => {});
   }
 });
 
