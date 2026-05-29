@@ -225,7 +225,7 @@ The FlowShift Slack bot maps the full API surface to native Slack patterns.
 | `/flowshift forgot` | Send a recovery link to your Slack email to get a new API key |
 | `/flowshift` | Opens a Block Kit modal — platform pickers, description textarea, file upload |
 | `/flowshift new` | Same as above |
-| `/flowshift list` | Shows your last 5 runs with status badges (ephemeral) |
+| `/flowshift list` | Shows your last 5 runs with status, full run ID, and a 📂 Drive link (ephemeral) |
 | `/flowshift status <run-id>` | Checks the status of a specific run (first 8 chars of ID work) |
 | `/flowshift unlink` | Removes the Slack ↔ FlowShift account link |
 | `/flowshift help` | Shows the command reference |

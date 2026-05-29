@@ -148,7 +148,7 @@ Sends a recovery link to your Slack profile email. Click the link to get a new A
 | `/flowshift forgot` | Send a recovery link to your Slack email to get a new API key |
 | `/flowshift` | Opens a modal to start a new migration or build guide |
 | `/flowshift new` | Same as above |
-| `/flowshift list` | Shows your last 5 runs with status badges (only visible to you) |
+| `/flowshift list` | Shows your last 5 runs — status, full run ID, and a 📂 Drive link per run (only visible to you) |
 | `/flowshift status <run-id>` | Checks a specific run — the first 8 characters of the ID work |
 | `/flowshift unlink` | Removes the account link |
 | `/flowshift help` | Shows this command reference in Slack |
