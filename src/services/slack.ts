@@ -13,6 +13,21 @@ export function getSlackClient(): WebClient {
   return _slack;
 }
 
+/**
+ * Fetch the verified email address from the user's Slack profile.
+ * Requires the `users:read.email` OAuth scope.
+ * Returns null if the scope is missing or the profile has no email.
+ */
+export async function getSlackUserEmail(slackUserId: string): Promise<string | null> {
+  try {
+    const info = await getSlackClient().users.info({ user: slackUserId });
+    const email = (info.user as any)?.profile?.email as string | undefined;
+    return email?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Signature verification ────────────────────────────────────────────────────
 
 export function verifySlackSignature(
@@ -88,20 +103,12 @@ export function buildRegisterModal() {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: 'Create a FlowShift account. Your API key will be sent to you as a DM — save it somewhere safe.',
+          // No email field — we use the verified Slack account email automatically.
+          // This prevents registering on behalf of someone else's email address.
+          text: 'Create a FlowShift account using your *Slack account email*. Your API key will be sent to you as a DM — save it somewhere safe.',
         },
       },
       { type: 'divider' },
-      {
-        type: 'input',
-        block_id: 'email_block',
-        label: { type: 'plain_text' as const, text: 'Email Address' },
-        element: {
-          type: 'plain_text_input' as const,
-          action_id: 'email',
-          placeholder: { type: 'plain_text' as const, text: 'you@example.com' },
-        },
-      },
       {
         type: 'input',
         block_id: 'name_block',

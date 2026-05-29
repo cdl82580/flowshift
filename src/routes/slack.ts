@@ -22,6 +22,7 @@ import {
   getLinkedFlowShiftUserId,
   linkSlackUser,
   getUserByApiKey,
+  getSlackUserEmail,
   buildNewRunModal,
   buildRegisterModal,
   sendProcessingMessage,
@@ -110,9 +111,9 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
             type: 'mrkdwn',
             text: '*FlowShift — iPaaS Migration Playbook Generator* ⚡\n\n' +
               '*Getting started:*\n' +
-              '• `/flowshift register` — create a new FlowShift account from Slack\n' +
+              '• `/flowshift register` — create a new account using your Slack email\n' +
               '• `/flowshift link <api-key>` — link an existing FlowShift account\n' +
-              '• `/flowshift forgot <email>` — email yourself a new API key\n\n' +
+              '• `/flowshift forgot` — send a recovery link to your Slack email\n\n' +
               '*Migrations:*\n' +
               '• `/flowshift` or `/flowshift new` — open the migration form\n' +
               '• `/flowshift list` — show your last 5 runs\n' +
@@ -133,22 +134,24 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
       return;
     }
 
-    // ── /flowshift forgot <email> — trigger recovery email ────────────────────
-    if (text.startsWith('forgot')) {
-      const parts = text.split(/\s+/);
-      const email  = parts[1]?.trim().toLowerCase();
-      if (!email || !email.includes('@')) {
+    // ── /flowshift forgot — send recovery to the user's verified Slack email ──
+    if (text === 'forgot' || text.startsWith('forgot ')) {
+      // Use the verified Slack account email — no manual input accepted.
+      // This prevents triggering recovery for an email you don't own.
+      const slackEmail = await getSlackUserEmail(slackUserId);
+
+      if (!slackEmail) {
         await reply(responseUrl, {
-          text: 'Usage: `/flowshift forgot your@email.com`\n\nWe\'ll send a link to reset your API key.',
+          text: `❌ Could not read your Slack account email (the \`users:read.email\` scope may be missing).\n` +
+            `Please recover your key at <${config.appUrl}/auth|${config.appUrl}/auth>.`,
         });
         return;
       }
 
-      // Reuse the same recovery logic as the REST API (neutral response either way)
       const db2 = getDb();
       const userRow = await db2.execute({
         sql: 'SELECT id FROM users WHERE email = ?',
-        args: [email],
+        args: [slackEmail],
       });
 
       if (userRow.rows.length) {
@@ -160,14 +163,13 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
           args: [token, userId, expires],
         });
         const recoveryUrl = `${config.appUrl}/recover?token=${token}`;
-        // sendRecoveryEmail is not exported — inline a minimal version
         if (config.resendApiKey) {
           await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               from: `FlowShift <${config.fromEmail}>`,
-              to:   [email],
+              to: [slackEmail],
               subject: 'Your FlowShift API key recovery link',
               html: `<p>Click the link below to get a new API key (valid 15 minutes, one-time use):</p>
                      <p><a href="${recoveryUrl}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reset my API key</a></p>
@@ -175,13 +177,14 @@ router.post('/commands', requireSlackSignature, async (req: Request, res: Respon
             }),
           }).catch(e => console.error('[slack/forgot] email send failed:', e));
         } else {
-          console.log(`[slack/forgot] recovery URL for ${email}: ${recoveryUrl}`);
+          console.log(`[slack/forgot] recovery URL for ${slackEmail}: ${recoveryUrl}`);
         }
       }
 
-      // Always neutral — don't reveal whether email is registered
+      // Neutral response — don't confirm whether the email was registered
       await reply(responseUrl, {
-        text: `📧 If *${email}* is registered, a recovery link is on its way.\nClick it to get a new API key, then \`/flowshift link <key>\` to reconnect.`,
+        text: `📧 If your Slack email (*${slackEmail}*) is registered, a recovery link is on its way.\n` +
+          `Click it to get a new API key, then \`/flowshift link <key>\` to reconnect.`,
       });
       return;
     }
@@ -333,17 +336,19 @@ router.post('/interactions', requireSlackSignature, async (req: Request, res: Re
   if (payload.view?.callback_id === 'flowshift_register') {
     const slackUserId = payload.user?.id as string;
     const workspaceId = (payload.team?.id ?? payload.user?.team_id) as string;
-    const values  = payload.view?.state?.values as Record<string, any>;
-    const email   = (values?.email_block?.email?.value as string || '').trim().toLowerCase();
-    const name    = (values?.name_block?.name?.value  as string || '').trim() || null;
+    const values = payload.view?.state?.values as Record<string, any>;
+    const name   = (values?.name_block?.name?.value as string || '').trim() || null;
 
     const dmResult  = await slack.conversations.open({ users: slackUserId });
     const channelId = (dmResult.channel as any)?.id as string;
     if (!channelId) return;
 
-    if (!email || !email.includes('@')) {
+    // Fetch the verified Slack email — the user cannot override this.
+    const email = await getSlackUserEmail(slackUserId);
+    if (!email) {
       await slack.chat.postMessage({ channel: channelId,
-        text: '❌ Please provide a valid email address.' });
+        text: `❌ Could not read your Slack account email (the \`users:read.email\` scope may be missing).\n` +
+          `Please register at <${config.appUrl}/auth|${config.appUrl}/auth>.` });
       return;
     }
 
@@ -357,7 +362,7 @@ router.post('/interactions', requireSlackSignature, async (req: Request, res: Re
     if (existing.rows.length) {
       await slack.chat.postMessage({ channel: channelId,
         text: `❌ *${email}* is already registered.\n\n` +
-          `Use \`/flowshift forgot ${email}\` to recover your API key, ` +
+          `Use \`/flowshift forgot\` to recover your API key, ` +
           `then \`/flowshift link <key>\` to connect your Slack account.` });
       return;
     }

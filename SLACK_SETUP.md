@@ -33,6 +33,7 @@ In your app's settings, go to **OAuth & Permissions** → scroll to **Bot Token 
 | `files:read` | Download workflow files uploaded in modals |
 | `files:write` | Upload import files back to Slack as attachments |
 | `im:write` | Write into DM channels |
+| `users:read.email` | Read the verified Slack account email for `/flowshift register` and `/flowshift forgot` — ensures users can only register or recover their own email, not someone else's |
 
 ---
 
@@ -134,11 +135,13 @@ You'll see:
 
 | Command | Description |
 |---|---|
+| `/flowshift register` | Create a FlowShift account using your Slack email — API key sent as DM |
+| `/flowshift link <api-key>` | Link an existing FlowShift account to your Slack |
+| `/flowshift forgot` | Send a recovery link to your Slack email to get a new API key |
 | `/flowshift` | Opens a modal to start a new migration or build guide |
 | `/flowshift new` | Same as above |
 | `/flowshift list` | Shows your last 5 runs with status badges (only visible to you) |
 | `/flowshift status <run-id>` | Checks a specific run — the first 8 characters of the ID work |
-| `/flowshift link <api-key>` | Links your Slack account to your FlowShift account |
 | `/flowshift unlink` | Removes the account link |
 | `/flowshift help` | Shows this command reference in Slack |
 
