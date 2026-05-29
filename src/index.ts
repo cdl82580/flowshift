@@ -24,7 +24,7 @@ app.use(helmet({
     directives: {
       defaultSrc:  ["'self'"],
       scriptSrc:   ["'self'"],
-      styleSrc:    ["'self'", "'unsafe-inline'"],   // Tailwind utility classes
+      styleSrc:    ["'self'", "'unsafe-inline'"],
       imgSrc:      ["'self'", "data:"],
       connectSrc:  ["'self'"],
       fontSrc:     ["'self'"],
@@ -36,30 +36,43 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// ── CORS — restrict to app origin in production ───────────────────────────────
 app.use(cors({
   origin: isProd ? config.appUrl : true,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'X-API-Key'],
 }));
 
+// ── Slack routes — MUST be mounted before express.json/urlencoded ─────────────
+// The Slack router uses express.raw() internally to capture the raw body for
+// HMAC signature verification. If express.urlencoded() runs first it consumes
+// the body stream, leaving nothing for express.raw() to read, causing the
+// computed HMAC to be over an empty string → signature mismatch → 401.
+app.use('/slack', slackRouter);
+
+// ── Global body parsers (all non-Slack routes) ────────────────────────────────
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
 const tooManyRequests = { error: 'Too many requests — please slow down.' };
 
-/** Run creation: max 20 per hour per API key (keyed on X-API-Key, falls back to IP) */
+/** Run creation: 20/hr keyed on X-API-Key, plain IP fallback (no IPv6 issue) */
 const runsLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => (req.headers['x-api-key'] as string) || req.ip || 'unknown',
+  keyGenerator: (req) => {
+    const apiKey = req.headers['x-api-key'] as string;
+    if (apiKey) return apiKey;
+    // Normalise IPv6-mapped IPv4 (::ffff:1.2.3.4 → 1.2.3.4) to avoid bypass
+    const ip = req.ip ?? 'unknown';
+    return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  },
   message: tooManyRequests,
 });
 
-/** Registration: max 10 per hour per IP */
+/** Registration: 10/hr per IP */
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
@@ -68,9 +81,6 @@ const registerLimiter = rateLimit({
   message: tooManyRequests,
 });
 
-// ── Slack routes — must come BEFORE global body parsers (needs raw body) ──────
-app.use('/slack', slackRouter);
-
 // ── Static frontend ───────────────────────────────────────────────────────────
 app.use(express.static(PUBLIC_DIR));
 
@@ -78,10 +88,10 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'flowshift-api', timestamp: new Date().toISOString() });
 });
 
-// ── Routes ────────────────────────────────────────────────────────────────────
-app.use('/auth', authRouter);
-app.use('/api/users', registerLimiter, usersRouter); // recoverLimiter is applied inside usersRouter
-app.use('/api/runs',  runsLimiter,    runsRouter);
+// ── API routes ────────────────────────────────────────────────────────────────
+app.use('/auth',      authRouter);
+app.use('/api/users', registerLimiter, usersRouter);
+app.use('/api/runs',  runsLimiter,     runsRouter);
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get('*', (_req, res) => {
